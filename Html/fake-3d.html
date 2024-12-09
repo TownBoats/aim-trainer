@@ -34,10 +34,11 @@
 
         .target {
             position: absolute;
-            width: 40px;
-            height: 40px;
+            width: 50px; /* 增大目标尺寸 */
+            height: 50px;
             transform-style: preserve-3d;
             transition: transform 0.3s ease-out;
+            transform-origin: center center;
         }
 
         .target-circle {
@@ -192,13 +193,13 @@
             targetCircle.className = 'target-circle';
             target.appendChild(targetCircle);
 
-            // 随机位置
-            const distance = 500 + Math.random() * 500; // 500-1000px的距离
-            const angle = Math.random() * Math.PI * 2; // 随机角度
-            const height = -100 + Math.random() * 200; // 随机高度
+            // 限制目标生成范围
+            const distance = 400 + Math.random() * 300; // 400-700px的距离，更容易瞄准
+            const angle = (Math.random() * 90 - 45) * Math.PI / 180; // 前方 -45° 到 45° 的范围
+            const height = -50 + Math.random() * 100; // 更小的高度范围，-50到50px
 
-            const x = Math.cos(angle) * distance;
-            const z = Math.sin(angle) * distance;
+            const x = Math.sin(angle) * distance; // 使用sin让目标在前方
+            const z = -Math.cos(angle) * distance; // 使用-cos让目标在前方
 
             target.style.transform = `translate3d(${x}px, ${height}px, ${z}px)`;
             gameWorld.appendChild(target);
