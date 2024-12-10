@@ -94,6 +94,13 @@
             font-size: 18px;
         }
 
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
         button {
             padding: 10px 20px;
             font-size: 16px;
@@ -109,6 +116,11 @@
             background-color: #45a049;
         }
 
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+
         .game-over {
             position: absolute;
             top: 50%;
@@ -119,40 +131,83 @@
             border-radius: 8px;
             text-align: center;
         }
+
+        #time-settings {
+            margin: 10px 0;
+        }
+
+        select {
+            padding: 5px;
+            margin: 0 10px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 4px;
+        }
+
+        .best-score {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #4CAF50;
+        }
     </style>
 </head>
 <body>
     <div id="game-container">
         <h1>射击训练</h1>
+        <div id="time-settings">
+            训练时间：
+            <select id="time-select">
+                <option value="30">30秒</option>
+                <option value="60">60秒</option>
+                <option value="120">120秒</option>
+                <option value="300">5分钟</option>
+            </select>
+        </div>
         <div class="stats">
             <div>分数: <span id="score">0</span></div>
             <div>时间: <span id="time">30</span>s</div>
             <div>命中率: <span id="accuracy">0</span>%</div>
         </div>
-        <button id="start-btn">开始训练</button>
+        <div class="controls">
+            <button id="start-btn">开始训练</button>
+            <button id="restart-btn" style="display: none;">重新开始</button>
+            <button id="pause-btn" style="display: none;">暂停</button>
+        </div>
         <div id="game-area">
             <div id="crosshair"></div>
         </div>
+        <div class="best-score">最高分: <span id="best-score">0</span></div>
     </div>
 
     <script>
         const gameArea = document.getElementById('game-area');
         const crosshair = document.getElementById('crosshair');
         const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const pauseBtn = document.getElementById('pause-btn');
         const scoreElement = document.getElementById('score');
         const timeElement = document.getElementById('time');
         const accuracyElement = document.getElementById('accuracy');
+        const timeSelect = document.getElementById('time-select');
+        const bestScoreElement = document.getElementById('best-score');
 
         let score = 0;
         let timeLeft = 30;
         let isPlaying = false;
+        let isPaused = false;
         let shots = 0;
         let hits = 0;
         let gameTimer;
         let currentTarget = null;
+        let bestScore = parseInt(localStorage.getItem('bestScore')) || 0;
+        let targetSpawnInterval;
+        
+        bestScoreElement.textContent = bestScore;
 
         // 更新准心位置
         gameArea.addEventListener('mousemove', (e) => {
+            if (isPaused) return;
             const rect = gameArea.getBoundingClientRect();
             crosshair.style.left = e.clientX - rect.left + 'px';
             crosshair.style.top = e.clientY - rect.top + 'px';
@@ -160,7 +215,7 @@
 
         // 处理点击
         gameArea.addEventListener('click', (e) => {
-            if (!isPlaying) return;
+            if (!isPlaying || isPaused) return;
             
             shots++;
             const rect = gameArea.getBoundingClientRect();
@@ -189,35 +244,76 @@
 
         // 开始游戏
         startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', restartGame);
+        pauseBtn.addEventListener('click', togglePause);
 
         function startGame() {
             score = 0;
-            timeLeft = 30;
+            timeLeft = parseInt(timeSelect.value);
             shots = 0;
             hits = 0;
             isPlaying = true;
+            isPaused = false;
             scoreElement.textContent = '0';
-            timeElement.textContent = '30';
+            timeElement.textContent = timeLeft;
             accuracyElement.textContent = '0';
             startBtn.style.display = 'none';
+            restartBtn.style.display = 'block';
+            pauseBtn.style.display = 'block';
+            timeSelect.disabled = true;
             
             removeTarget();
             spawnTarget();
 
+            // 自动生成目标
+            targetSpawnInterval = setInterval(() => {
+                if (!isPaused && !currentTarget) {
+                    spawnTarget();
+                }
+            }, 1000);
+
             gameTimer = setInterval(() => {
-                timeLeft--;
-                timeElement.textContent = timeLeft;
-                
-                if (timeLeft <= 0) {
-                    endGame();
+                if (!isPaused) {
+                    timeLeft--;
+                    timeElement.textContent = timeLeft;
+                    
+                    if (timeLeft <= 0) {
+                        endGame();
+                    }
                 }
             }, 1000);
         }
 
+        function restartGame() {
+            clearInterval(gameTimer);
+            clearInterval(targetSpawnInterval);
+            const gameOver = document.querySelector('.game-over');
+            if (gameOver) gameOver.remove();
+            startGame();
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? '继续' : '暂停';
+            if (isPaused) {
+                crosshair.style.display = 'none';
+            } else {
+                crosshair.style.display = 'block';
+            }
+        }
+
         function endGame() {
             isPlaying = false;
+            isPaused = false;
             clearInterval(gameTimer);
+            clearInterval(targetSpawnInterval);
             removeTarget();
+            
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('bestScore', bestScore);
+                bestScoreElement.textContent = bestScore;
+            }
             
             const gameOver = document.createElement('div');
             gameOver.className = 'game-over';
@@ -227,13 +323,18 @@
                 <p>命中率: ${Math.round((hits / shots) * 100)}%</p>
                 <p>总击中次数: ${hits}</p>
                 <p>总射击次数: ${shots}</p>
+                ${score > bestScore ? '<p style="color: #4CAF50">新纪录！</p>' : ''}
             `;
             gameArea.appendChild(gameOver);
+            
             startBtn.style.display = 'block';
+            restartBtn.style.display = 'none';
+            pauseBtn.style.display = 'none';
+            timeSelect.disabled = false;
         }
 
         function spawnTarget() {
-            if (!isPlaying) return;
+            if (!isPlaying || isPaused) return;
 
             const target = document.createElement('div');
             target.className = 'target';
@@ -251,6 +352,13 @@
             
             gameArea.appendChild(target);
             currentTarget = target;
+
+            // 目标自动消失
+            setTimeout(() => {
+                if (currentTarget === target) {
+                    removeTarget();
+                }
+            }, 2000);
         }
 
         function removeTarget() {
@@ -266,8 +374,11 @@
         });
 
         gameArea.addEventListener('mouseenter', () => {
-            crosshair.style.display = 'block';
+            if (!isPaused) {
+                crosshair.style.display = 'block';
+            }
         });
     </script>
 </body>
 </html>
+
